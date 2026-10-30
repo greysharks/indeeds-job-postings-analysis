@@ -39,31 +39,78 @@ def plot_job_postings_by_sector(data: pd.DataFrame, sectors: np.ndarray, country
   plt.xticks(rotation=45)
   
   
-def list_job_postings_by_sector(data: pd.DataFrame, sectors: np.ndarray):
+def list_job_postings_by_sector(data: pd.DataFrame, sectors: np.ndarray, year: int, country_code: str):
   ''' List job postings by sector in descending order by the average 
       of indeed job postings index (which is a percent change in 
       seasonally-adjusted postings since February 1, 2020). The average
-      value is calculated only for the last year.
+      value is calculated only for the year specified.
   
       Args:
         data (pandas.DataFrame) : Data for job postings in all sectors for a specific country 
         sectors (numpy.ndarray) : Sectors that are used to categorize data provided
+        year (int) : Year to calculate the average job postings index over
+        country_code (str) : Two-character ISO 3166-1 alpha-2 country code
           
       Returns:
         list: The list of sector names listed in descending order based  
         on their average indeed job posting index over last year 
   '''
+  averages = {}
+  start_date = f'{str(year)}0101'
+  end_date = f'{str(year)}1231'
   
+  mask = (data['date'] >= start_date) & (data['date'] <= end_date)
+  filtered_data = data[mask]
   
+  for sector in sectors:
+      # extract the subset of data defined by sector, including only the number of total postings for the plot
+      subset = filtered_data[(filtered_data['display_name'] == sector) & (filtered_data['variable'] == 'total postings')]
+      averages[sector] = (subset['indeed_job_postings_index'].sum() / len(subset))
   
-  return []
+  fig, ax = plt.subplots(figsize=(10, 8))
+  
+  # removing standard plot axices
+  ax.axis('off')
+  ax.axis('tight')
+  
+  # convert dictionary to DataFrame type
+  table_data = pd.DataFrame(list(averages.items()), columns=['Sector', 'Average Indeed Job Postings Index'])
+  # sort in descending order
+  table_data = table_data.sort_values(by='Average Indeed Job Postings Index', ascending=False)
+  
+  # remove index numbers for the table rows
+  table_data = table_data.reset_index(drop=True)
+
+  col_labels = table_data.columns.tolist()
+  cell_text = table_data.values.tolist()
+  
+  # round average values
+  for row in cell_text:
+    for i in range(len(row)):
+      if isinstance(row[i], (int, float)):
+        row[i] = round(row[i], 2)
+          
+  the_table = ax.table(
+    cellText=cell_text,
+    colLabels=col_labels,
+    loc='center',
+    cellLoc='center'
+  )
+  
+  the_table.auto_set_font_size(False)
+  the_table.set_fontsize(8)
+  the_table.scale(0.7, 0.9)
+  
+  ax.set_title(f'Table of Average Indeed Job Postings Index over year {str(year)} ({country_code})', fontsize=12, pad=50)
+      
+  return averages
 
 def display_statistics(country_code: str):
   ''' Display statistics on job postings by sector for a country,
       specified by a given country code. Achieve this by creating 
       plots for dynamics of job postings by sector using data provided
       by indeed. Then print list of sectors in descending order of their 
-      average values of indeed job postings index over last year. 
+      average values of indeed job postings index over specified year. 
       The x-axis for all plots is presented in year-month format, once
       per three months. The legend shows each sector of plots present on 
       figure.
@@ -79,13 +126,13 @@ def display_statistics(country_code: str):
   categories = data_csv['display_name'].unique()
   
   plot_job_postings_by_sector(data_csv, categories, country_code)
-  sectors_list = list_job_postings_by_sector(data_csv, categories)
+  list_job_postings_by_sector(data_csv, categories, 2026, country_code)
   
-  print(f'List of average job posting index in {country_code}:')
-  for item in sectors_list:
-    print(item)
+  # print(f'List of average job posting index in {country_code}:')
+  # for item in sectors_list:
+  #   print(item, sectors_list[item])
     
-  print('\n')
+  # print('\n')
 
 
 display_statistics('US')
@@ -93,4 +140,3 @@ display_statistics('DE')
 display_statistics('FR')
 
 plt.show()
-
