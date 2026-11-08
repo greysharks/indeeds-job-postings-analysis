@@ -16,13 +16,11 @@ def plot_job_postings_by_sector(data: pd.DataFrame, sectors: np.ndarray, country
       Returns:
         None
   '''
-  # create new figure
-  plt.figure(figsize=(14, 6))
-    
+  
   # plot job postings for every sector present in data file
   for sector in sectors:
     # extract the subset of data defined by sector, including only the number of total postings for the plot
-    subset = data[(data['display_name'] == sector) & (data['variable'] == 'total postings')]
+    subset = data[(data['display_name'] == sector)]
     plt.plot(subset['date'], subset['indeed_job_postings_index'], linewidth=1.5, label=f'{sector}')
     
   # Modify presentation of plots' X axis
@@ -31,6 +29,52 @@ def plot_job_postings_by_sector(data: pd.DataFrame, sectors: np.ndarray, country
 
   # Modify plots' metadata and presentation
   plt.title(f'Job postings by sector ({country_code})')
+  plt.xlabel('Date (X-axis)')
+  plt.ylabel('Indeed job posting index (Y-axis)')
+  plt.legend(bbox_to_anchor=(1.02, 1), loc='upper left', fontsize='x-small', ncol=1)
+  plt.subplots_adjust(right=0.8)
+  plt.grid(True)
+  plt.xticks(rotation=45)
+  
+def plot_derivatives_by_sector(data: pd.DataFrame, sectors: np.ndarray, country_code: str):
+  for sector in sectors:
+    subset = data[(data['display_name'] == sector)]
+  
+def plot_linear_regressions_by_sector(data: pd.DataFrame, sectors: np.ndarray, country_code: str):
+  for sector in sectors:
+    subset = data[(data['display_name'] == sector)]
+    
+    # turn data in numpy arrays
+    y_vals = subset['indeed_job_postings_index'].to_numpy()
+    x_vals = subset['date'].to_numpy(dtype='datetime64[D]') # specify datetime type
+    x_vals = (x_vals - x_vals.min()).astype('timedelta64[D]').astype('float') # turn datetime into time intervals in form of floats
+  
+    # normalize data
+    y_mean = np.mean(y_vals)
+    x_mean = np.mean(x_vals)
+
+    y_std = np.std(y_vals)
+    x_std = np.std(x_vals)
+  
+    y_vals = (y_vals - y_mean) / y_std
+    x_vals = (x_vals - x_mean) / x_std
+    
+    params = linear_regression(x_vals, y_vals)
+  
+    h_func = params[0] + params[1] * x_vals
+    
+    # plt.plot(x_vals, h_func, linewidth=1.5, label=f'{sector}')
+    # if params[1] > 0:
+      # plt.plot(subset['date'], h_func * y_std + y_mean, linewidth=1.5, label=f'{sector}')
+      
+    plt.plot(subset['date'], h_func * y_std + y_mean, linewidth=1.5, label=f'{sector}')
+    
+  # Modify presentation of plots' X axis
+  plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
+  plt.gca().xaxis.set_major_locator(mdates.MonthLocator(interval=3))
+
+  # Modify plots' metadata and presentation
+  plt.title(f'Linear regressions for job postings by sector ({country_code})')
   plt.xlabel('Date (X-axis)')
   plt.ylabel('Indeed job posting index (Y-axis)')
   plt.legend(bbox_to_anchor=(1.02, 1), loc='upper left', fontsize='x-small', ncol=1)
@@ -52,8 +96,6 @@ def plot_average_job_postings_by_sector(data: pd.DataFrame, sectors: np.ndarray,
       Returns:
         None
   '''
-  plt.figure(figsize=(14, 6))
-  
   list_of_averages = []
   years = list(range(2020, 2027))
   
@@ -101,9 +143,9 @@ def calculate_averages(data: pd.DataFrame, sectors: np.ndarray, year: int):
   filtered_data = data[mask]
   
   for sector in sectors:
-    subset = filtered_data[(filtered_data['display_name'] == sector) & (filtered_data['variable'] == 'total postings')]
+    subset = filtered_data[(filtered_data['display_name'] == sector)]
     
-    # Защита от деления на ноль
+    # zero division check
     if len(subset) > 0:
       averages[sector] = subset['indeed_job_postings_index'].sum() / len(subset)
     else:
@@ -134,7 +176,7 @@ def list_job_postings_by_sector(data: pd.DataFrame, sectors: np.ndarray, country
   # removing standard plot axices
   ax.axis('off')
   ax.axis('tight')
-  
+    
   # convert dictionary to DataFrame type
   table_data = pd.DataFrame(
     list(calculate_averages(data, sectors, year).items()), 
@@ -185,17 +227,43 @@ def display_statistics(country_code: str):
       Returns:
         None
   '''
-  data_csv = pd.read_csv(f'job_postings_by_sector_{country_code}.csv')
-  data_csv['date'] = pd.to_datetime(data_csv['date']) # change format (strings -> datetime objects)
-  categories = data_csv['display_name'].unique()
+  df_postings = pd.read_csv(f'job_postings_by_sector_{country_code}.csv')
+  df_postings['date'] = pd.to_datetime(df_postings['date']) # change format (strings -> datetime objects)
+  df_postings = df_postings[(df_postings['variable'] == 'total postings')] # include only total postings
   
-  plot_job_postings_by_sector(data_csv, categories, country_code)
-  list_job_postings_by_sector(data_csv, categories, country_code)
-  plot_average_job_postings_by_sector(data_csv, categories, country_code)
+  categories = df_postings['display_name'].unique() 
+  # print(categories)
+  
+  # # slice data
+  # df_postings = df_postings[df_postings['date'] >= pd.to_datetime('2022-01-01')]
+  
+  # create new figure
+  plt.figure(figsize=(14, 6))
+  
+  plot_linear_regressions_by_sector(df_postings, categories, country_code)
+  # plot_job_postings_by_sector(df_postings, categories), country_code)
+  # list_job_postings_by_sector(df_postings, categories, country_code)
+  # plot_average_job_postings_by_sector(df_postings, categories, country_code)
+  
+  plt.show()
 
+def linear_regression(x_values: np.ndarray, y_values: np.ndarray):
+  theta = np.random.randn(2)
+  alpha = 0.01 # learning rate
+  
+  J_theta = sum((theta[0] + theta[1] * x_values - y_values)**2) / 2
+  # print(J_theta)
+  
+  for i in range(0, 1000):
+    partial_drv = (theta[0] + theta[1] * x_values) - y_values
+    theta[0] -= alpha * 2 * np.mean(partial_drv)
+    theta[1] -= alpha * 2 * np.mean(x_values * partial_drv)
+    
+  J_theta = sum((theta[0] + theta[1] * x_values - y_values)**2) / 2
+  # print(J_theta)
+  
+  return theta
 
 display_statistics('US')
 # display_statistics('DE')
 # display_statistics('FR')
-
-plt.show()
