@@ -23,22 +23,29 @@ def plot_job_postings_by_sector(data: pd.DataFrame, sectors: np.ndarray, country
     subset = data[(data['display_name'] == sector)]
     plt.plot(subset['date'], subset['indeed_job_postings_index'], linewidth=1.5, label=f'{sector}')
     
-  # Modify presentation of plots' X axis
-  plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
-  plt.gca().xaxis.set_major_locator(mdates.MonthLocator(interval=3))
-
   # Modify plots' metadata and presentation
   plt.title(f'Job postings by sector ({country_code})')
   plt.xlabel('Date (X-axis)')
-  plt.ylabel('Indeed job posting index (Y-axis)')
-  plt.legend(bbox_to_anchor=(1.02, 1), loc='upper left', fontsize='x-small', ncol=1)
-  plt.subplots_adjust(right=0.8)
-  plt.grid(True)
-  plt.xticks(rotation=45)
+  plt.ylabel('Indeed Job Posting Index (Y-axis)')
+
   
 def plot_derivatives_by_sector(data: pd.DataFrame, sectors: np.ndarray, country_code: str):
   for sector in sectors:
-    subset = data[(data['display_name'] == sector)]
+    subset = data[(data['display_name'] == sector)]    
+    
+    y0_vals = subset['indeed_job_postings_index'].to_numpy()
+    y1_vals = subset['indeed_job_postings_index'].to_numpy()
+    
+    y_vals = y1_vals[1:] - y0_vals[:-1]
+    
+    print(np.mean(y_vals))
+    
+    plt.plot(subset['date'][:-1], y_vals, linewidth=1.5, label=f'{sector}')
+    
+  # Modify plots' metadata and presentation
+  plt.title(f'Derivatives for job postings by sector ({country_code})')
+  plt.xlabel('Date (X-axis)')
+  plt.ylabel('Derivative of Indeed Job Posting Index (Y-axis)')
   
 def plot_linear_regressions_by_sector(data: pd.DataFrame, sectors: np.ndarray, country_code: str):
   for sector in sectors:
@@ -63,24 +70,18 @@ def plot_linear_regressions_by_sector(data: pd.DataFrame, sectors: np.ndarray, c
   
     h_func = params[0] + params[1] * x_vals
     
+    print(params[1])
+    
     # plt.plot(x_vals, h_func, linewidth=1.5, label=f'{sector}')
     # if params[1] > 0:
       # plt.plot(subset['date'], h_func * y_std + y_mean, linewidth=1.5, label=f'{sector}')
       
     plt.plot(subset['date'], h_func * y_std + y_mean, linewidth=1.5, label=f'{sector}')
     
-  # Modify presentation of plots' X axis
-  plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
-  plt.gca().xaxis.set_major_locator(mdates.MonthLocator(interval=3))
-
   # Modify plots' metadata and presentation
   plt.title(f'Linear regressions for job postings by sector ({country_code})')
   plt.xlabel('Date (X-axis)')
-  plt.ylabel('Indeed job posting index (Y-axis)')
-  plt.legend(bbox_to_anchor=(1.02, 1), loc='upper left', fontsize='x-small', ncol=1)
-  plt.subplots_adjust(right=0.8)
-  plt.grid(True)
-  plt.xticks(rotation=45)
+  plt.ylabel('Indeed Job Posting Index (Y-axis)')
   
 
 def plot_average_job_postings_by_sector(data: pd.DataFrame, sectors: np.ndarray, country_code: str):
@@ -115,12 +116,8 @@ def plot_average_job_postings_by_sector(data: pd.DataFrame, sectors: np.ndarray,
           plt.plot(df_avg.index, df_avg[sector], linewidth=1.5, label=sector, marker='o')
           
   plt.title(f'Average Job Postings by Sector per Year ({country_code})')
-  plt.xlabel('Year')
-  plt.ylabel('Average Indeed Job Posting Index')
-  plt.legend(bbox_to_anchor=(1.02, 1), loc='upper left', fontsize='x-small', ncol=1)
-  plt.subplots_adjust(right=0.8)
-  plt.grid(True)
-  plt.xticks(rotation=45)
+  plt.xlabel('Year (X-axis)')
+  plt.ylabel('Average Indeed Job Posting Index (Y-axis)')
 
 
 def calculate_averages(data: pd.DataFrame, sectors: np.ndarray, year: int):
@@ -147,7 +144,7 @@ def calculate_averages(data: pd.DataFrame, sectors: np.ndarray, year: int):
     
     # zero division check
     if len(subset) > 0:
-      averages[sector] = subset['indeed_job_postings_index'].sum() / len(subset)
+      averages[sector] = np.mean(subset['indeed_job_postings_index'])
     else:
       averages[sector] = 0.0
           
@@ -227,9 +224,19 @@ def display_statistics(country_code: str):
       Returns:
         None
   '''
+  # read data
+  df_ai = pd.read_csv('AI_posting.csv')
   df_postings = pd.read_csv(f'job_postings_by_sector_{country_code}.csv')
-  df_postings['date'] = pd.to_datetime(df_postings['date']) # change format (strings -> datetime objects)
-  df_postings = df_postings[(df_postings['variable'] == 'total postings')] # include only total postings
+  
+  # change format (strings -> datetime objects)
+  df_ai['date'] = pd.to_datetime(df_ai['date'])
+  df_postings['date'] = pd.to_datetime(df_postings['date']) 
+  
+  # include only total postings
+  df_postings = df_postings[(df_postings['variable'] == 'total postings')]
+  
+  # specify country for ai postings   
+  df_ai = df_ai[(df_ai['jobcountry'] == country_code)]
   
   categories = df_postings['display_name'].unique() 
   # print(categories)
@@ -240,13 +247,28 @@ def display_statistics(country_code: str):
   # create new figure
   plt.figure(figsize=(14, 6))
   
-  plot_linear_regressions_by_sector(df_postings, categories, country_code)
-  # plot_job_postings_by_sector(df_postings, categories), country_code)
+  # plot ai postings
+  plt.plot(df_ai['date'], df_ai['AI_share_postings'], linewidth=1.5, label='AI')
+  plt.title(f'Percentage of AI postings ({country_code})')
+  plt.xlabel('Date (X-axis)')
+  plt.ylabel('Percentage of AI postings (Y-axis)')
+  
+  plot_derivatives_by_sector(df_postings, np.array(['Accounting']), country_code)  
+  # plot_linear_regressions_by_sector(df_postings, np.array(['Accounting']), country_code)
+  # plot_job_postings_by_sector(df_postings, np.array(['Accounting']), country_code)
   # list_job_postings_by_sector(df_postings, categories, country_code)
   # plot_average_job_postings_by_sector(df_postings, categories, country_code)
   
+  # Modify presentation of plots' X axis
+  plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
+  plt.gca().xaxis.set_major_locator(mdates.MonthLocator(interval=3))
+  plt.legend(bbox_to_anchor=(1.02, 1), loc='upper left', fontsize='x-small', ncol=1)
+  plt.subplots_adjust(right=0.8)
+  plt.grid(True)
+  plt.xticks(rotation=45)
+  
   plt.show()
-
+  
 def linear_regression(x_values: np.ndarray, y_values: np.ndarray):
   theta = np.random.randn(2)
   alpha = 0.01 # learning rate
