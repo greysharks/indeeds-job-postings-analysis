@@ -3,85 +3,46 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 
-def plot_job_postings_by_sector(data: pd.DataFrame, sectors: np.ndarray, country_code: str):
-  ''' Create plots for job postings for each sector from 'sectors' argument.
-      All plots are created on the same figure and show the dynamics of job
-      postings for all sectors provided by 'data' argument.
-      
-      Args:
-        data (pandas.DataFrame) : Data for job postings in all sectors for a specific country 
-        sectors (numpy.ndarray) : Sectors that are used to categorize data provided
-        country_code (str) : Two-character ISO 3166-1 alpha-2 country code
-        
-      Returns:
-        None
-  '''
+def plot_graph(x_values: np.ndarray, y_values: np.ndarray, graph_title: str, graph_label: str, x_label: str, y_label: str):
+  plt.plot(x_values, y_values, linewidth=1.5, label=graph_label)
+
+  # Modify presentation of plots' X axis
+  plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
+  plt.gca().xaxis.set_major_locator(mdates.MonthLocator(interval=3))
   
-  # plot job postings for every sector present in data file
-  for sector in sectors:
-    # extract the subset of data defined by sector, including only the number of total postings for the plot
-    subset = data[(data['display_name'] == sector)]
-    plt.plot(subset['date'], subset['indeed_job_postings_index'], linewidth=1.5, label=f'{sector}')
-    
   # Modify plots' metadata and presentation
-  plt.title(f'Job postings by sector ({country_code})')
-  plt.xlabel('Date (X-axis)')
-  plt.ylabel('Indeed Job Posting Index (Y-axis)')
+  plt.title(graph_title)
+  plt.xlabel(x_label)
+  plt.ylabel(y_label)
+  plt.legend(bbox_to_anchor=(1.02, 1), loc='upper left', fontsize='x-small', ncol=1)
+  plt.subplots_adjust(right=0.8)
+  plt.grid(True)
+  plt.xticks(rotation=45)
 
   
-def plot_derivatives_by_sector(data: pd.DataFrame, sectors: np.ndarray, country_code: str):
-  for sector in sectors:
-    subset = data[(data['display_name'] == sector)]    
-    
-    y0_vals = subset['indeed_job_postings_index'].to_numpy()
-    y1_vals = subset['indeed_job_postings_index'].to_numpy()
-    
-    y_vals = y1_vals[1:] - y0_vals[:-1]
-    
-    print(np.mean(y_vals))
-    
-    plt.plot(subset['date'][:-1], y_vals, linewidth=1.5, label=f'{sector}')
-    
-  # Modify plots' metadata and presentation
-  plt.title(f'Derivatives for job postings by sector ({country_code})')
-  plt.xlabel('Date (X-axis)')
-  plt.ylabel('Derivative of Indeed Job Posting Index (Y-axis)')
-  
-def plot_linear_regressions_by_sector(data: pd.DataFrame, sectors: np.ndarray, country_code: str):
-  for sector in sectors:
-    subset = data[(data['display_name'] == sector)]
-    
-    # turn data in numpy arrays
-    y_vals = subset['indeed_job_postings_index'].to_numpy()
-    x_vals = subset['date'].to_numpy(dtype='datetime64[D]') # specify datetime type
-    x_vals = (x_vals - x_vals.min()).astype('timedelta64[D]').astype('float') # turn datetime into time intervals in form of floats
-  
-    # normalize data
-    y_mean = np.mean(y_vals)
-    x_mean = np.mean(x_vals)
+def get_derivatives(data: np.ndarray):
+  return data[1:] - data[:-1]
 
-    y_std = np.std(y_vals)
-    x_std = np.std(x_vals)
   
-    y_vals = (y_vals - y_mean) / y_std
-    x_vals = (x_vals - x_mean) / x_std
-    
-    params = linear_regression(x_vals, y_vals)
+def get_linear_regressions(x_values: np.ndarray, y_values: np.ndarray):
+  # turn datetime into time intervals in form of floats
+  x_values = (x_values - x_values.min()).astype('timedelta64[D]').astype('float') 
   
-    h_func = params[0] + params[1] * x_vals
+  # normalize data
+  y_mean = np.mean(y_values)
+  x_mean = np.mean(x_values)
+  y_std = np.std(y_values)
+  x_std = np.std(x_values)
+  
+  y_values = (y_values - y_mean) / y_std
+  x_values = (x_values - x_mean) / x_std
     
-    print(params[1])
+  # calculate linear regression algorithms
+  params = linear_regression(x_values, y_values)
+  h_func = params[0] + params[1] * x_values
     
-    # plt.plot(x_vals, h_func, linewidth=1.5, label=f'{sector}')
-    # if params[1] > 0:
-      # plt.plot(subset['date'], h_func * y_std + y_mean, linewidth=1.5, label=f'{sector}')
-      
-    plt.plot(subset['date'], h_func * y_std + y_mean, linewidth=1.5, label=f'{sector}')
-    
-  # Modify plots' metadata and presentation
-  plt.title(f'Linear regressions for job postings by sector ({country_code})')
-  plt.xlabel('Date (X-axis)')
-  plt.ylabel('Indeed Job Posting Index (Y-axis)')
+  # print(params[1])
+  return h_func * y_std + y_mean
   
 
 def plot_average_job_postings_by_sector(data: pd.DataFrame, sectors: np.ndarray, country_code: str):
@@ -248,26 +209,60 @@ def display_statistics(country_code: str):
   plt.figure(figsize=(14, 6))
   
   # plot ai postings
-  plt.plot(df_ai['date'], df_ai['AI_share_postings'], linewidth=1.5, label='AI')
-  plt.title(f'Percentage of AI postings ({country_code})')
-  plt.xlabel('Date (X-axis)')
-  plt.ylabel('Percentage of AI postings (Y-axis)')
   
-  plot_derivatives_by_sector(df_postings, np.array(['Accounting']), country_code)  
-  # plot_linear_regressions_by_sector(df_postings, np.array(['Accounting']), country_code)
-  # plot_job_postings_by_sector(df_postings, np.array(['Accounting']), country_code)
+  plot_graph(
+    df_ai['date'].to_numpy(dtype='datetime64[D]'), 
+    df_ai['AI_share_postings'].to_numpy(), 
+    graph_title=f'Percentage of AI postings ({country_code})',
+    graph_label='AI',
+    x_label='Date (X-axis)',
+    y_label='Percentage of AI postings (Y-axis)'
+  )
+  
+  plt.show()
+  
+  # create new figure
+  plt.figure(figsize=(14, 6))
+  
+  for sector in categories:
+    subset = df_postings[(df_postings['display_name'] == sector)]
+    
+    plot_graph(
+      subset['date'].to_numpy(dtype='datetime64[D]'),
+      subset['indeed_job_postings_index'].to_numpy(),
+      graph_title=f'Job postings by sector ({country_code})',
+      graph_label=sector,
+      x_label='Date (X-axis)',
+      y_label='Indeed Job Posting Index (Y-axis)'
+    )
+    
+    # plot_graph(
+    #   subset['date'][:-1].to_numpy(dtype='datetime64[D]'), 
+    #   get_derivatives(subset['indeed_job_postings_index'].to_numpy()), 
+    #   graph_title=f'Derivatives for job postings by sector ({country_code})',
+    #   graph_label=sector,
+    #   x_label='Date (X-axis)',
+    #   y_label='Derivative value of Indeed Job Posting Index (Y-axis)'
+    # )
+    
+    # plot_graph(
+    #   subset['date'].to_numpy(dtype='datetime64[D]'), 
+    #   get_linear_regressions(
+    #     subset['date'].to_numpy(dtype='datetime64[D]'), 
+    #     subset['indeed_job_postings_index'].to_numpy()
+    #   ), 
+    #   graph_title=f'Linear regressions for job postings by sector ({country_code})',
+    #   graph_label=sector,
+    #   x_label='Date (X-axis)',
+    #   y_label='Indeed Job Posting Index (Y-axis)'
+    # )
+
+  plt.show()
+  
   # list_job_postings_by_sector(df_postings, categories, country_code)
   # plot_average_job_postings_by_sector(df_postings, categories, country_code)
   
-  # Modify presentation of plots' X axis
-  plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
-  plt.gca().xaxis.set_major_locator(mdates.MonthLocator(interval=3))
-  plt.legend(bbox_to_anchor=(1.02, 1), loc='upper left', fontsize='x-small', ncol=1)
-  plt.subplots_adjust(right=0.8)
-  plt.grid(True)
-  plt.xticks(rotation=45)
-  
-  plt.show()
+
   
 def linear_regression(x_values: np.ndarray, y_values: np.ndarray):
   theta = np.random.randn(2)
