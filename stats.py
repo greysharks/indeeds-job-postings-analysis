@@ -24,6 +24,24 @@ def get_derivatives(data: np.ndarray):
   return data[1:] - data[:-1]
 
   
+def linear_regression(x_values: np.ndarray, y_values: np.ndarray):
+  theta = np.random.randn(2)
+  alpha = 0.01 # learning rate
+  
+  J_theta = sum((theta[0] + theta[1] * x_values - y_values)**2) / 2
+  # print(J_theta)
+  
+  for i in range(0, 1000):
+    partial_drv = (theta[0] + theta[1] * x_values) - y_values
+    theta[0] -= alpha * 2 * np.mean(partial_drv)
+    theta[1] -= alpha * 2 * np.mean(x_values * partial_drv)
+    
+  J_theta = sum((theta[0] + theta[1] * x_values - y_values)**2) / 2
+  # print(J_theta)
+  
+  return theta
+  
+  
 def get_linear_regressions(x_values: np.ndarray, y_values: np.ndarray):
   # turn datetime into time intervals in form of floats
   x_values = (x_values - x_values.min()).astype('timedelta64[D]').astype('float') 
@@ -45,119 +63,58 @@ def get_linear_regressions(x_values: np.ndarray, y_values: np.ndarray):
   return h_func * y_std + y_mean
   
 
-def plot_average_job_postings_by_sector(data: pd.DataFrame, sectors: np.ndarray, country_code: str):
-  ''' Create plots for job postings for each sector from 'sectors' argument, based
-      on their average per year. All plots are created on the same figure and show 
-      the dynamics of job postings for all sectors provided by 'data' argument.
-      
-      Args:
-        data (pandas.DataFrame) : Data for job postings in all sectors for a specific country 
-        sectors (numpy.ndarray) : Sectors that are used to categorize data provided
-        country_code (str) : Two-character ISO 3166-1 alpha-2 country code
-        
-      Returns:
-        None
-  '''
-  list_of_averages = []
-  years = list(range(2020, 2027))
+def get_averages(data: pd.DataFrame, start_year: int, end_year: int):
+  averages = pd.DataFrame(columns=['Year', 'Average value'])
+  years = []
+  values = []
   
-  for year in years:
-    # Saving averages per year
-    avg_dict = calculate_averages(data, sectors, year)
-    avg_dict['Year'] = str(year) # Adding year for X axis
-    list_of_averages.append(avg_dict)
-      
-  # Creating DataFrame, where rows represent years and columns represent sectors
-  df_avg = pd.DataFrame(list_of_averages)
-  df_avg.set_index('Year', inplace=True)
-  
-  # Plotting each sector
-  for sector in sectors:
-      if sector in df_avg.columns:
-          plt.plot(df_avg.index, df_avg[sector], linewidth=1.5, label=sector, marker='o')
-          
-  plt.title(f'Average Job Postings by Sector per Year ({country_code})')
-  plt.xlabel('Year (X-axis)')
-  plt.ylabel('Average Indeed Job Posting Index (Y-axis)')
-
-
-def calculate_averages(data: pd.DataFrame, sectors: np.ndarray, year: int):
-  ''' Calculate average values for given sectors per given year.
-
-      Args:
-        data (pandas.DataFrame) : Data for job postings in all sectors for a specific country 
-        sectors (numpy.ndarray) : Sectors that are used to categorize data provided
-        year (int) : Base year for averages
-        
-      Returns:
-        None
-  '''
-  
-  averages = {}
-  start_date = f'{year}0101'
-  end_date = f'{year}1231'
-  
-  mask = (data['date'] >= start_date) & (data['date'] <= end_date)
-  filtered_data = data[mask]
-  
-  for sector in sectors:
-    subset = filtered_data[(filtered_data['display_name'] == sector)]
+  for year in range(start_year, end_year + 1):
+    start_date = f'{year}-01-01'
+    end_date = f'{year}-12-31'
     
-    # zero division check
-    if len(subset) > 0:
-      averages[sector] = np.mean(subset['indeed_job_postings_index'])
-    else:
-      averages[sector] = 0.0
-          
+    mask = (data['date'] >= start_date) & (data['date'] <= end_date)
+    filtered_data = data[mask]
+
+    values.append(calculate_averages(filtered_data['indeed_job_postings_index'].to_numpy()))
+    years.append(str(year))
+    
+  averages['Year'] = np.array(years)
+  averages['Average value'] = np.array(values)
+
   return averages
-    
-def list_job_postings_by_sector(data: pd.DataFrame, sectors: np.ndarray, country_code: str):
-  ''' List job postings by sector in descending order by the average 
-      of indeed job postings index (which is a percent change in 
-      seasonally-adjusted postings since February 1, 2020). The average
-      value is calculated only for the year specified.
-  
-      Args:
-        data (pandas.DataFrame) : Data for job postings in all sectors for a specific country 
-        sectors (numpy.ndarray) : Sectors that are used to categorize data provided
-        year (int) : Year to calculate the average job postings index over
-        country_code (str) : Two-character ISO 3166-1 alpha-2 country code
-          
-      Returns:
-        list: The list of sector names listed in descending order based  
-        on their average indeed job posting index over last year 
-  '''
-  year = 2026
-  
-  fig, ax = plt.subplots(figsize=(10, 8))
-  
-  # removing standard plot axices
-  ax.axis('off')
-  ax.axis('tight')
-    
-  # convert dictionary to DataFrame type
-  table_data = pd.DataFrame(
-    list(calculate_averages(data, sectors, year).items()), 
-    columns=['Sector', 'Average Indeed Job Postings Index']
-  )
-  # sort in descending order
-  table_data = table_data.sort_values(by='Average Indeed Job Postings Index', ascending=False)
-  
-  # remove index numbers for the table rows
-  table_data = table_data.reset_index(drop=True)
 
-  col_labels = table_data.columns.tolist()
-  cell_text = table_data.values.tolist()
+def calculate_averages(values: np.ndarray):
+  # zero division check
+  if len(values) > 0:
+    return np.mean(values)
+  else:
+    return 0.0
+   
+    
+def list_in_table(x_values: np.ndarray, y_values: np.ndarray, table_title: str, column_names: list[str]):
+  if len(column_names) != 2:
+    raise ValueError("column_names must contain exactly two names")
+  if len(x_values) != len(y_values):
+    raise ValueError("x_values and y_values must have the same length")
+  
+  x_column, y_column = column_names
+  df = pd.DataFrame({x_column: x_values, y_column: y_values})
+    
+  # removing standard plot axices
+  plt.axis('off')
+  plt.axis('tight')
+  
+  # sort in descending order
+  df = df.sort_values(by=y_column, ascending=False).reset_index(drop=True)
   
   # round average values
-  for row in cell_text:
-    for i in range(len(row)):
-      if isinstance(row[i], (int, float)):
-        row[i] = round(row[i], 2)
+  if pd.api.types.is_numeric_dtype(df[y_column]):
+    df[y_column] = df[y_column].round(2)
+    
+  plt.title(table_title, fontsize=12, pad=50)
           
-  the_table = ax.table(
-    cellText=cell_text,
-    colLabels=col_labels,
+  the_table = plt.table(
+    cellText=df,
     loc='center',
     cellLoc='center'
   )
@@ -165,26 +122,9 @@ def list_job_postings_by_sector(data: pd.DataFrame, sectors: np.ndarray, country
   the_table.auto_set_font_size(False)
   the_table.set_fontsize(8)
   the_table.scale(0.7, 0.9)
-  
-  ax.set_title(f'Table of Average Indeed Job Postings Index over year {str(year)} ({country_code})', fontsize=12, pad=50)
 
 
 def display_statistics(country_code: str):
-  ''' Display statistics on job postings by sector for a country,
-      specified by a given country code. Achieve this by creating 
-      plots for dynamics of job postings by sector using data provided
-      by indeed. Then print list of sectors in descending order of their 
-      average values of indeed job postings index over specified year. 
-      The x-axis for all plots is presented in year-month format, once
-      per three months. The legend shows each sector of plots present on 
-      figure.
-      
-      Args:
-        country_code (str) : Two-character ISO 3166-1 alpha-2 country code
-        
-      Returns:
-        None
-  '''
   # read data
   df_ai = pd.read_csv('AI_posting.csv')
   df_postings = pd.read_csv(f'job_postings_by_sector_{country_code}.csv')
@@ -220,6 +160,7 @@ def display_statistics(country_code: str):
   )
   
   plt.show()
+  plt.close()
   
   # create new figure
   plt.figure(figsize=(14, 6))
@@ -227,13 +168,24 @@ def display_statistics(country_code: str):
   for sector in categories:
     subset = df_postings[(df_postings['display_name'] == sector)]
     
+    # plot_graph(
+    #   subset['date'].to_numpy(dtype='datetime64[D]'),
+    #   subset,
+    #   graph_title=f'Job postings by sector ({country_code})',
+    #   graph_label=sector,
+    #   x_label='Date (X-axis)',
+    #   y_label='Indeed Job Posting Index (Y-axis)'
+    # )
+
+    averages = get_averages(subset, 2020, 2026)    
+        
     plot_graph(
-      subset['date'].to_numpy(dtype='datetime64[D]'),
-      subset['indeed_job_postings_index'].to_numpy(),
-      graph_title=f'Job postings by sector ({country_code})',
+      averages['Year'].to_numpy(dtype='datetime64[D]'),
+      averages['Average value'].to_numpy(),
+      graph_title=f'Average Job Postings by Sector per Year ({country_code})',
       graph_label=sector,
-      x_label='Date (X-axis)',
-      y_label='Indeed Job Posting Index (Y-axis)'
+      x_label='Year (X-axis)',
+      y_label='Average Indeed Job Posting Index (Y-axis)'
     )
     
     # plot_graph(
@@ -256,30 +208,27 @@ def display_statistics(country_code: str):
     #   x_label='Date (X-axis)',
     #   y_label='Indeed Job Posting Index (Y-axis)'
     # )
-
-  plt.show()
-  
-  # list_job_postings_by_sector(df_postings, categories, country_code)
-  # plot_average_job_postings_by_sector(df_postings, categories, country_code)
-  
-
-  
-def linear_regression(x_values: np.ndarray, y_values: np.ndarray):
-  theta = np.random.randn(2)
-  alpha = 0.01 # learning rate
-  
-  J_theta = sum((theta[0] + theta[1] * x_values - y_values)**2) / 2
-  # print(J_theta)
-  
-  for i in range(0, 1000):
-    partial_drv = (theta[0] + theta[1] * x_values) - y_values
-    theta[0] -= alpha * 2 * np.mean(partial_drv)
-    theta[1] -= alpha * 2 * np.mean(x_values * partial_drv)
     
-  J_theta = sum((theta[0] + theta[1] * x_values - y_values)**2) / 2
-  # print(J_theta)
+  plt.show()
+  plt.close()
+    
+  # create new figure
+  plt.figure(figsize=(14, 6))
+    
+  for sector in categories:
+    subset = df_postings[(df_postings['display_name'] == sector)]
+    averages = get_averages(subset, 2020, 2026)
   
-  return theta
+    list_in_table(
+      averages['Year'].to_numpy(),
+      averages['Average value'].to_numpy(), 
+      table_title=f'Table of Average Indeed Job Postings Index per year for {sector} ({country_code})',
+      column_names=['Year', 'Average Indeed Job Postings Index']
+    )
+      
+  plt.show()
+  plt.close()
+
 
 display_statistics('US')
 # display_statistics('DE')
