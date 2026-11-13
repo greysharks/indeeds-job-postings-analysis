@@ -69,14 +69,14 @@ def get_averages(data: pd.DataFrame, start_year: int, end_year: int):
   values = []
   
   for year in range(start_year, end_year + 1):
-    start_date = f'{year}-01-01'
-    end_date = f'{year}-12-31'
+    start_date = pd.to_datetime(f'{year}-01-01')
+    end_date = pd.to_datetime(f'{year}-12-31')
     
     mask = (data['date'] >= start_date) & (data['date'] <= end_date)
     filtered_data = data[mask]
 
     values.append(calculate_averages(filtered_data['indeed_job_postings_index'].to_numpy()))
-    years.append(str(year))
+    years.append(pd.to_datetime(str(year)))
     
   averages['Year'] = np.array(years)
   averages['Average value'] = np.array(values)
@@ -91,27 +91,25 @@ def calculate_averages(values: np.ndarray):
     return 0.0
    
     
-def list_in_table(x_values: np.ndarray, y_values: np.ndarray, table_title: str, column_names: list[str]):
-  if len(column_names) != 2:
-    raise ValueError("column_names must contain exactly two names")
-  if len(x_values) != len(y_values):
-    raise ValueError("x_values and y_values must have the same length")
-  
-  x_column, y_column = column_names
-  df = pd.DataFrame({x_column: x_values, y_column: y_values})
+def list_in_table(x_values: np.ndarray, y_values: pd.DataFrame, table_title: str, column_names: list[str]):  
+  x_column = column_names[0]
+  df = pd.DataFrame({x_column: x_values})
+  df = pd.concat([df, y_values], axis=1)
     
   # removing standard plot axices
   plt.axis('off')
   plt.axis('tight')
   
   # sort in descending order
-  df = df.sort_values(by=y_column, ascending=False).reset_index(drop=True)
+  df = df.sort_values(by=column_names[-1], ascending=False)
+  df = df.reset_index(drop=True)
   
   # round average values
-  if pd.api.types.is_numeric_dtype(df[y_column]):
-    df[y_column] = df[y_column].round(2)
+  for column_name in column_names:
+    if pd.api.types.is_numeric_dtype(df[column_name]):
+      df[column_name] = df[column_name].round(2)
     
-  plt.title(table_title, fontsize=12, pad=50)
+  plt.title(table_title, fontsize=10, pad=60)
           
   the_table = plt.table(
     cellText=df,
@@ -121,10 +119,11 @@ def list_in_table(x_values: np.ndarray, y_values: np.ndarray, table_title: str, 
   
   the_table.auto_set_font_size(False)
   the_table.set_fontsize(8)
-  the_table.scale(0.7, 0.9)
+  the_table.scale(1.2, 0.7)
 
 
 def display_statistics(country_code: str):
+  #################### prepare data for analysis ####################
   # read data
   df_ai = pd.read_csv('AI_posting.csv')
   df_postings = pd.read_csv(f'job_postings_by_sector_{country_code}.csv')
@@ -142,52 +141,59 @@ def display_statistics(country_code: str):
   categories = df_postings['display_name'].unique() 
   # print(categories)
   
-  # # slice data
-  # df_postings = df_postings[df_postings['date'] >= pd.to_datetime('2022-01-01')]
+  # slice data by specific year
+  df_postings = df_postings[(df_postings['date'] >= pd.to_datetime('2022-02-01'))] 
+  df_ai = df_ai[(df_ai['date'] >= pd.to_datetime('2022-02-01'))] 
   
-  # create new figure
-  plt.figure(figsize=(14, 6))
+  #################### plot graphs for ai postings on indeed ####################
   
-  # plot ai postings
+  # # create new figure
+  # plt.figure(figsize=(14, 6))
   
-  plot_graph(
-    df_ai['date'].to_numpy(dtype='datetime64[D]'), 
-    df_ai['AI_share_postings'].to_numpy(), 
-    graph_title=f'Percentage of AI postings ({country_code})',
-    graph_label='AI',
-    x_label='Date (X-axis)',
-    y_label='Percentage of AI postings (Y-axis)'
-  )
+  # # plot regular ai postings
+  # plot_graph(
+  #   df_ai['date'].to_numpy(dtype='datetime64[D]'), 
+  #   df_ai['AI_share_postings'].to_numpy(), 
+  #   graph_title=f'Percentage of AI postings ({country_code})',
+  #   graph_label='AI',
+  #   x_label='Date (X-axis)',
+  #   y_label='Percentage of AI postings (Y-axis)'
+  # )
   
-  plt.show()
-  plt.close()
+  # plt.show()
+  # plt.close()
   
-  # create new figure
-  plt.figure(figsize=(14, 6))
+  #################### plot graphs for job postings on indeed ####################
   
+  # # create new figure
+  # plt.figure(figsize=(14, 6))
+    
   for sector in categories:
     subset = df_postings[(df_postings['display_name'] == sector)]
     
+    # # plot regular job postings
     # plot_graph(
     #   subset['date'].to_numpy(dtype='datetime64[D]'),
-    #   subset,
+    #   subset['indeed_job_postings_index'].to_numpy(),
     #   graph_title=f'Job postings by sector ({country_code})',
     #   graph_label=sector,
     #   x_label='Date (X-axis)',
     #   y_label='Indeed Job Posting Index (Y-axis)'
     # )
 
-    averages = get_averages(subset, 2020, 2026)    
+    # # plot average job postings
+    # averages = get_averages(subset, 2020, 2026)    
         
-    plot_graph(
-      averages['Year'].to_numpy(dtype='datetime64[D]'),
-      averages['Average value'].to_numpy(),
-      graph_title=f'Average Job Postings by Sector per Year ({country_code})',
-      graph_label=sector,
-      x_label='Year (X-axis)',
-      y_label='Average Indeed Job Posting Index (Y-axis)'
-    )
+    # plot_graph(
+    #   averages['Year'].to_numpy(dtype='datetime64[D]'),
+    #   averages['Average value'].to_numpy(),
+    #   graph_title=f'Average Job Postings by Sector per Year ({country_code})',
+    #   graph_label=sector,
+    #   x_label='Year (X-axis)',
+    #   y_label='Average Indeed Job Posting Index (Y-axis)'
+    # )
     
+    # # plot 'derivatives' for job postings
     # plot_graph(
     #   subset['date'][:-1].to_numpy(dtype='datetime64[D]'), 
     #   get_derivatives(subset['indeed_job_postings_index'].to_numpy()), 
@@ -197,6 +203,7 @@ def display_statistics(country_code: str):
     #   y_label='Derivative value of Indeed Job Posting Index (Y-axis)'
     # )
     
+    # # plot linear regressions for job postings
     # plot_graph(
     #   subset['date'].to_numpy(dtype='datetime64[D]'), 
     #   get_linear_regressions(
@@ -209,27 +216,46 @@ def display_statistics(country_code: str):
     #   y_label='Indeed Job Posting Index (Y-axis)'
     # )
     
-  plt.show()
-  plt.close()
+  # plt.show()
+  # plt.close()
+
+  ############### list all average job posting indexes by year for each sector ############### 
+  
+  all_averages: dict[str, list[float]] = {}
+  years = []
+  
+  start_year = 2022
+  end_year = 2026
+  
+  for i in range(start_year, end_year + 1):
+    years.append(str(i))
+    all_averages[years[i - start_year]] = []
     
   # create new figure
   plt.figure(figsize=(14, 6))
     
   for sector in categories:
     subset = df_postings[(df_postings['display_name'] == sector)]
-    averages = get_averages(subset, 2020, 2026)
-  
-    list_in_table(
-      averages['Year'].to_numpy(),
-      averages['Average value'].to_numpy(), 
-      table_title=f'Table of Average Indeed Job Postings Index per year for {sector} ({country_code})',
-      column_names=['Year', 'Average Indeed Job Postings Index']
-    )
+    sector_averages = get_averages(subset, start_year, end_year)
+    for i in range(start_year, end_year + 1):
+      filtered_by_year = sector_averages[(sector_averages['Year'].dt.year == i)]
+      all_averages[years[i - start_year]].append(filtered_by_year['Average value'].iloc[0])
+
+  list_in_table(
+    categories,
+    pd.DataFrame(all_averages, columns=years), 
+    table_title=f'Table of Average Indeed Job Postings Index per year ({country_code})',
+    column_names=['Sector']+years
+  )
       
-  plt.show()
-  plt.close()
+  # plt.show()
+  # plt.close()
 
 
 display_statistics('US')
-# display_statistics('DE')
-# display_statistics('FR')
+display_statistics('DE')
+display_statistics('FR')
+
+
+plt.show()
+plt.close()
